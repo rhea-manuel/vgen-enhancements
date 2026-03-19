@@ -7,6 +7,7 @@
 // @match        *://vgen.co/*
 // @grant        GM_openInTab
 // @run-at       document-start
+// @license      MIT
 // ==/UserScript==
 
 (function() {
