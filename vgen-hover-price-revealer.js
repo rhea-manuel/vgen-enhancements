@@ -1,11 +1,12 @@
 // ==UserScript==
 // @name         VGen: Hover Price Revealer (Permanent Display)
-// @namespace    https://github.com/rhea-manuel/vgen-hover-price-revealer
+// @namespace    https://github.com/rhea-manuel/vgen-enhancements
 // @version      1.0
 // @description  Fetches prices on hover and keeps them displayed on the card.
 // @author       https://github.com/rhea-manuel
 // @match        *://vgen.co/*
 // @grant        none
+// @license      MIT
 // ==/UserScript==
 
 (function() {
