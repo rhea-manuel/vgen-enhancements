@@ -1,16 +1,43 @@
 // ==UserScript==
 // @name         VGen: Ultimate Enhancement Suite
 // @namespace    https://github.com/rheactdev/vgen-enhancements
-// @version      0.2.0
+// @version      0.3.0
 // @description  Combines Auto-Reveal, Price Hover, and Background Tab clicks into one ultra-optimized script.
 // @author       https://github.com/rheactdev
 // @match        *://vgen.co/*
 // @grant        GM_openInTab
+// @grant        GM_getValue
+// @grant        GM_setValue
+// @grant        GM_registerMenuCommand
+// @grant        GM_unregisterMenuCommand
 // @license      MIT
 // ==/UserScript==
 
-(function() {
+(function () {
     'use strict';
+
+    // --- 0. CONFIGURATION & STATE MANAGEMENT ---
+    let openInBackground = GM_getValue('vgen_bg_tabs_enabled', true);
+    let autoRevealEnabled = GM_getValue('vgen_auto_reveal_enabled', true);
+    let bgMenuId, revealMenuId;
+
+    function renderMenus() {
+        if (typeof bgMenuId !== 'undefined') GM_unregisterMenuCommand(bgMenuId);
+        if (typeof revealMenuId !== 'undefined') GM_unregisterMenuCommand(revealMenuId);
+
+        bgMenuId = GM_registerMenuCommand(`Background Tabs: ${openInBackground ? 'ON' : 'OFF'}`, () => {
+            openInBackground = !openInBackground;
+            GM_setValue('vgen_bg_tabs_enabled', openInBackground);
+            renderMenus(); // Re-render to update UI text
+        });
+
+        revealMenuId = GM_registerMenuCommand(`Auto-Reveal Sensitive: ${autoRevealEnabled ? 'ON' : 'OFF'}`, () => {
+            autoRevealEnabled = !autoRevealEnabled;
+            GM_setValue('vgen_auto_reveal_enabled', autoRevealEnabled);
+            renderMenus(); // Re-render to update UI text
+        });
+    }
+    renderMenus();
 
     // --- 1. OFFLOADED CSS (Hardware Accelerated) ---
     const style = document.createElement('style');
@@ -55,7 +82,6 @@
 
     function getVGenData(cardElement) {
         let fiberKey;
-        // FAST LOOP: Avoids Object.keys() array allocation
         for (const key in cardElement) {
             if (key.startsWith('__reactFiber$')) {
                 fiberKey = key;
@@ -92,7 +118,6 @@
     }
 
     // --- 3. DOM CACHING & REVEAL LOGIC ---
-    // Ensure we only run expensive partial-string queries once per card
     function getCardDOM(card) {
         if (!card.vgenDOM) {
             card.vgenDOM = {
@@ -132,10 +157,9 @@
         dom.thumb.appendChild(injectedMedia);
 
         requestAnimationFrame(() => injectedMedia.style.opacity = "1");
-        setTimeout(() => { if(matureWarning.parentNode) matureWarning.remove(); }, 200);
+        setTimeout(() => { if (matureWarning.parentNode) matureWarning.remove(); }, 200);
     }
 
-    // FAST HTML BUILDER: Generates string rather than multiple DOM nodes
     function createBadgeHTML(text, colorHex) {
         return `<span class="vgen-custom-badge" style="background: ${colorHex}22; color: ${colorHex}; border: 1px solid ${colorHex}55;">${text}</span>`;
     }
@@ -218,7 +242,7 @@
     // --- 4. ZERO-LAG DELEGATED EVENTS ---
     let currentHoveredCard = null;
 
-    document.addEventListener('mouseover', function(e) {
+    document.addEventListener('mouseover', function (e) {
         const card = e.target.closest('[class*="ServiceGridCard__GridCard"], [class*="ProductListing__"]');
         if (!card || card === currentHoveredCard) return;
 
@@ -233,7 +257,9 @@
 
         const dom = getCardDOM(card);
 
-        executeImageReveal(card, vData, dom);
+        if (autoRevealEnabled) {
+            executeImageReveal(card, vData, dom);
+        }
 
         if (card.dataset.priceRevealed !== "true") {
             card.hoverTimer = setTimeout(() => {
@@ -244,7 +270,7 @@
         }
     });
 
-    document.addEventListener('mouseout', function(e) {
+    document.addEventListener('mouseout', function (e) {
         if (!currentHoveredCard) return;
 
         if (currentHoveredCard.contains(e.relatedTarget)) return;
@@ -257,11 +283,18 @@
     });
 
     // --- 5. CLICK HANDLER (Background Tab) ---
-    document.addEventListener('click', function(e) {
+    document.addEventListener('click', function (e) {
+        if (!openInBackground) return;
         if (!e.target || !e.target.closest) return;
 
         const card = e.target.closest('[class*="ProductListing"], [class*="ServiceGridCard__GridCard"]');
         if (!card) return;
+
+        // EXCLUSION FILTER: Ensure standard React synthetic events handle localized card interactions
+        const interactiveChild = e.target.closest('button, [role="button"], a:not([class*="GridCard"]):not([class*="ProductListing"]), svg');
+        if (interactiveChild && card.contains(interactiveChild)) {
+            return;
+        }
 
         if (!card.vgenData) card.vgenData = getVGenData(card);
         const vData = card.vgenData;
@@ -273,6 +306,6 @@
             const url = `https://vgen.co/${vData.username}/${vData.type}/${vData.slug}/${vData.id}`;
             GM_openInTab(url, { active: false, insert: true });
         }
-    }, true);
+    }, true); // Capturing phase execution maintained for primary card clicks
 
 })();
